@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,12 +23,13 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
-import { InboxIcon, UsersIcon, FileTextIcon, PlusIcon, TrashIcon, SearchIcon, UploadIcon, SunIcon, MoonIcon, LayoutDashboardIcon, SettingsIcon, LogOutIcon, BellIcon, BarChartIcon, PieChartIcon, CalendarIcon, CheckIcon, ChevronsUpDownIcon, FilterIcon, TagIcon, ClockIcon, AlertCircleIcon, CheckCircleIcon, XCircleIcon, DownloadIcon, EyeIcon } from 'lucide-react'
+import { InboxIcon, UsersIcon, FileTextIcon, PlusIcon, TrashIcon, SearchIcon, UploadIcon, SunIcon, MoonIcon, LayoutDashboardIcon, SettingsIcon, LogOutIcon, BellIcon, BarChartIcon, PieChartIcon, CalendarIcon, CheckIcon, ChevronsUpDownIcon, FilterIcon, TagIcon, ClockIcon, AlertCircleIcon, CheckCircleIcon, XCircleIcon, DownloadIcon, EyeIcon, ScaleIcon } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
-import { format } from 'date-fns'
+import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns'
 import { cn } from "@/lib/utils"
 import { AuthPage } from './auth-page'
+import { Calendar as EnhancedCalendar } from './calendar'
 
 interface Client {
   id: number
@@ -52,6 +55,8 @@ interface Event {
   title: string
   date: Date
   clientId: number
+  description?: string
+  location?: string
 }
 
 interface Task {
@@ -76,7 +81,7 @@ const folderStructure = {
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
 
-export default function LawyerDocumentManagement() {
+export default function LawEManagement() {
   const [clients, setClients] = useState<Client[]>([
     { id: 1, name: "John Doe", email: "john@example.com", phone: "123-456-7890" },
     { id: 2, name: "Jane Smith", email: "jane@example.com", phone: "098-765-4321" },
@@ -106,6 +111,8 @@ export default function LawyerDocumentManagement() {
     email: '',
     notifications: true,
     theme: 'light',
+    language: 'en',
+    timezone: 'UTC',
   })
   const [notifications, setNotifications] = useState([
     { id: 1, title: "New client added", read: false, timestamp: new Date() },
@@ -229,6 +236,8 @@ export default function LawyerDocumentManagement() {
       email: '',
       notifications: true,
       theme: 'light',
+      language: 'en',
+      timezone: 'UTC',
     })
     toast({
       title: "Logged Out",
@@ -345,6 +354,10 @@ export default function LawyerDocumentManagement() {
       ...userSettings,
       email: loggedInUser.email,
     })
+    toast({
+      title: "Welcome to Law-E",
+      description: `Logged in successfully as ${loggedInUser.name}.`,
+    })
   }
 
   return (
@@ -357,8 +370,8 @@ export default function LawyerDocumentManagement() {
               <div className="flex flex-col h-0 flex-1 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                 <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
                   <div className="flex items-center flex-shrink-0 px-4">
-                    <FileTextIcon className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
-                    <span className="ml-2 text-xl font-semibold">LawDMS</span>
+                    <ScaleIcon className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+                    <span className="ml-2 text-xl font-semibold">Law-E</span>
                   </div>
                   <nav className="mt-5 flex-1 px-2 bg-white dark:bg-gray-800 space-y-1">
                     {[
@@ -467,7 +480,7 @@ export default function LawyerDocumentManagement() {
                       </SheetTrigger>
                       <SheetContent side="left">
                         <SheetHeader>
-                          <SheetTitle>LawDMS</SheetTitle>
+                          <SheetTitle>Law-E</SheetTitle>
                           <SheetDescription>
                             Navigate through your legal document management system.
                           </SheetDescription>
@@ -513,6 +526,9 @@ export default function LawyerDocumentManagement() {
                         </CardHeader>
                         <CardContent>
                           <div className="text-2xl font-bold">{clients.length}</div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {clients.length > 0 ? `${((clients.length / 100) * 100).toFixed(2)}% growth` : 'No clients yet'}
+                          </p>
                         </CardContent>
                       </Card>
                       <Card>
@@ -521,6 +537,9 @@ export default function LawyerDocumentManagement() {
                         </CardHeader>
                         <CardContent>
                           <div className="text-2xl font-bold">{documents.length}</div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {documents.length > 0 ? `${((documents.length / 1000) * 100).toFixed(2)}% of storage used` : 'No documents yet'}
+                          </p>
                         </CardContent>
                       </Card>
                       <Card>
@@ -531,7 +550,11 @@ export default function LawyerDocumentManagement() {
                           <ul className="space-y-2">
                             {documents.slice(-3).reverse().map((doc) => (
                               <li key={doc.id} className="text-sm">
-                                {doc.title} - {format(new Date(doc.createdAt), 'MMM d, yyyy')}
+                                <span className="font-medium">{doc.title}</span>
+                                <br />
+                                <span className="text-gray-500 dark:text-gray-400">
+                                  {format(new Date(doc.createdAt), 'MMM d, yyyy')} - {clients.find(c => c.id === doc.clientId)?.name}
+                                </span>
                               </li>
                             ))}
                           </ul>
@@ -605,6 +628,9 @@ export default function LawyerDocumentManagement() {
                           <div className="text-2xl font-bold">
                             {Object.values(billableHours).reduce((sum, hours) => sum + hours, 0)}
                           </div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Across all clients
+                          </p>
                         </CardContent>
                       </Card>
                     </div>
@@ -726,12 +752,21 @@ export default function LawyerDocumentManagement() {
                                           <Label htmlFor="client-phone">Phone</Label>
                                           <Input id="client-phone" value={client.phone} className="col-span-3" readOnly />
                                         </div>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                          <Label htmlFor="client-documents">Documents</Label>
+                                          <Input id="client-documents" value={documents.filter(d => d.clientId === client.id).length.toString()} className="col-span-3" readOnly />
+                                        </div>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                          <Label htmlFor="client-billable-hours">Billable Hours</Label>
+                                          <Input id="client-billable-hours" value={billableHours[client.id] || '0'} className="col-span-3" readOnly />
+                                        </div>
                                       </div>
                                     </DialogContent>
                                   </Dialog>
                                   <Button variant="outline" size="sm" onClick={() => deleteClient(client.id)}>
                                     <TrashIcon className="h-4 w-4" />
-                                    <span className="sr-only">Delete client</span></Button>
+                                    <span className="sr-only">Delete client</span>
+                                  </Button>
                                 </div>
                               </li>
                             ))}
@@ -954,74 +989,17 @@ export default function LawyerDocumentManagement() {
                   )}
 
                   {activeTab === 'calendar' && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center">
-                          <CalendarIcon className="mr-2" />
-                          Calendar
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div>
-                            <Calendar
-                              mode="single"
-                              selected={newEvent.date}
-                              onSelect={(date) => date && setNewEvent({...newEvent, date})}
-                              className="rounded-md border"
-                            />
-                            <div className="mt-4 space-y-2">
-                              <Input
-                                placeholder="Event title"
-                                value={newEvent.title}
-                                onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
-                              />
-                              <Select
-                                value={newEvent.clientId.toString()}
-                                onValueChange={(value) => setNewEvent({...newEvent, clientId: parseInt(value)})}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select Client" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {clients.map((client) => (
-                                    <SelectItem key={client.id} value={client.id.toString()}>
-                                      {client.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <Button onClick={addEvent} className="w-full">
-                                <PlusIcon className="mr-2 h-4 w-4" /> Add Event
-                              </Button>
-                            </div>
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-semibold mb-2">Upcoming Events</h3>
-                            <ScrollArea className="h-[400px]">
-                              <ul className="space-y-2">
-                                {events.map((event) => (
-                                  <li key={event.id} className="bg-white dark:bg-gray-800 p-2 rounded shadow">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center">
-                                        <CalendarIcon className="inline-block mr-2 h-4 w-4" />
-                                        <span>{event.title}</span>
-                                      </div>
-                                      <Badge variant="outline">
-                                        {format(new Date(event.date), 'MMM d, yyyy')}
-                                      </Badge>
-                                    </div>
-                                    <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                      Client: {clients.find(c => c.id === event.clientId)?.name}
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            </ScrollArea>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <EnhancedCalendar
+                      events={events}
+                      clients={clients}
+                      onAddEvent={(newEvent) => {
+                        setEvents([...events, { id: events.length + 1, ...newEvent }])
+                        toast({
+                          title: "Event Added",
+                          description: `${newEvent.title} has been added to your calendar.`,
+                        })
+                      }}
+                    />
                   )}
 
                   {activeTab === 'tasks' && (
@@ -1139,6 +1117,45 @@ export default function LawyerDocumentManagement() {
                 <SelectContent>
                   <SelectItem value="light">Light</SelectItem>
                   <SelectItem value="dark">Dark</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="settings-language" className="text-right">
+                Language
+              </Label>
+              <Select
+                value={userSettings.language || 'en'}
+                onValueChange={(value) => setUserSettings({...userSettings, language: value})}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select language" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="es">Español</SelectItem>
+                  <SelectItem value="fr">Français</SelectItem>
+                  <SelectItem value="de">Deutsch</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="settings-timezone" className="text-right">
+                Timezone
+              </Label>
+              <Select
+                value={userSettings.timezone || 'UTC'}
+                onValueChange={(value) => setUserSettings({...userSettings, timezone: value})}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UTC">UTC</SelectItem>
+                  <SelectItem value="America/New_York">Eastern Time</SelectItem>
+                  <SelectItem value="America/Chicago">Central Time</SelectItem>
+                  <SelectItem value="America/Denver">Mountain Time</SelectItem>
+                  <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
                 </SelectContent>
               </Select>
             </div>
